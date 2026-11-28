@@ -32,7 +32,7 @@ def looks_suspicious(c):
     # 2) many stars but almost no forks
     stars = c.meta.get("stars", 0)
     forks = c.meta.get("forks")
-    if forks is not None and stars >= 50 and forks < stars * 0.02:
+    if forks is not None and stars >= 100 and forks < stars * 0.05:
         return True, f"{stars} stars but only {forks} forks (possible fake stars)"
 
     # 3) brand-new owner account with almost no followers
