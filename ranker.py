@@ -1,4 +1,4 @@
-"""Dedup + rank. Pure Python, no LLM needed for the MVP."""
+"""Dedup + rank. Pure Python, no LLM needed."""
 import re
 from collections import defaultdict
 import config
@@ -8,7 +8,10 @@ import db
 def key_for(url: str) -> str:
     u = url.lower().split("#")[0].split("?")[0]
     u = re.sub(r"^https?://(www\.)?", "", u).rstrip("/")
-    for pat in (r"(github\.com/[^/]+/[^/]+)", r"(huggingface\.co/(?:spaces/)?[^/]+/[^/]+)"):
+    if "/releases/" in u:
+        return u                      # each release is its own item
+    for pat in (r"(github\.com/[^/]+/[^/]+)",
+                r"(huggingface\.co/(?:spaces/)?(?!blog/|papers/|docs/)[^/]+/[^/]+)"):
         m = re.match(pat, u)
         if m:
             return m.group(1)
@@ -56,3 +59,17 @@ def rank(cands):
         final.append(c)
     final.sort(key=lambda x: x.score, reverse=True)
     return final
+
+
+def diversify(cands):
+    """Round-robin across sources and blogs, so the best item of EACH group comes first
+    and no single source fills the whole digest. Input must already be sorted best-first."""
+    groups = {}
+    for c in cands:
+        groups.setdefault(c.meta.get("blog") or c.source, []).append(c)
+    out = []
+    while any(groups.values()):
+        for g in list(groups):
+            if groups[g]:
+                out.append(groups[g].pop(0))
+    return out

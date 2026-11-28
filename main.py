@@ -1,5 +1,7 @@
 """Daily AI/ML trends agent.  Usage: python main.py [--no-send] [--top N]"""
 import argparse
+from collections import Counter
+
 import config
 import db
 import publisher
@@ -7,38 +9,53 @@ import ranker
 import relevance
 import researcher
 import sources
-import trust                                   # NEW
+import trust
 import verifier
 import writer
 
 
 def run(send: bool, top_n: int):
-    cands = ranker.rank(sources.discover())
+    cands = ranker.diversify(ranker.rank(sources.discover()))
     print(f"[rank] {len(cands)} fresh candidates")
 
     entries = []
-    for c in cands[: top_n * 4]:               # CHANGED: bigger buffer
+    per_group = Counter()                      # how many entries each source already has
+    for c in cands[: top_n * 6]:               # buffer: some will be skipped
         if len(entries) >= top_n:
             break
+        group = c.meta.get("blog") or c.source
+        if per_group[group] >= config.MAX_PER_GROUP:
+            print(f"[skip] {c.name} (already have {config.MAX_PER_GROUP} from {group})")
+            continue
+
         print(f"[work] {c.name}  (stars={c.meta.get('stars', '-')}, forks={c.meta.get('forks', '-')})")
 
+        # 1) cheap checks first
         bad, why = trust.looks_suspicious(c)
         if bad:
             print(f"  skip (suspicious): {why}")
             db.mark_seen(c.key, c.name, c.url)
             continue
+        if not relevance.passes_keywords(c):
+            print("  skip (not AI/ML): no AI/ML keywords")
+            db.mark_seen(c.key, c.name, c.url)
+            continue
 
-        ok, why = relevance.is_relevant(c)
+        # 2) download the real text
+        text, facts, links = researcher.research(c)
+        if len(text) < 200:
+            print("  skip: not enough source text")
+            continue
+
+        # 3) AI judge, with a page excerpt
+        ok, why = relevance.is_relevant(c, text)
         if not ok:
             print(f"  skip (not AI/ML): {why}")
             db.mark_seen(c.key, c.name, c.url)
             continue
         print(f"  AI/ML check passed: {why}")
 
-        text, facts, links = researcher.research(c)
-        if len(text) < 200:
-            print("  skip: not enough source text")
-            continue
+        # 4) write, then verify
         e = writer.write(c, text, facts)
         if not e:
             print("  skip: model gave no valid JSON")
@@ -54,6 +71,7 @@ def run(send: bool, top_n: int):
         for k in ("pros", "cons", "alternatives"):
             e.setdefault(k, [])
         entries.append(e)
+        per_group[group] += 1
         db.mark_seen(c.key, c.name, c.url)
 
     digest = publisher.build_digest(entries)

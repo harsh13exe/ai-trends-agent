@@ -29,7 +29,7 @@ def looks_suspicious(c):
     if SUSPICIOUS_WORDS.search(f"{c.name} {c.description}"):
         return True, "suspicious words in name or description"
 
-    # 2) many stars but almost no forks
+    # 2) many stars but few forks
     stars = c.meta.get("stars", 0)
     forks = c.meta.get("forks")
     if forks is not None and stars >= 100 and forks < stars * 0.05:
