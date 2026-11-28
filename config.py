@@ -27,15 +27,30 @@ EMAIL_TO = os.getenv("EMAIL_TO", "")
 HN_QUERIES = ["LLM", "AI", "machine learning", "open source model", "agents", "RAG", "fine-tuning"]
 GITHUB_TERMS = ["llm", "ai agent", "machine learning", "rag", "diffusion", "mcp"]
 
-_RELEVANT = re.compile(
-    r"\b(ai|llm|llms|gpt|claude|gemini|llama|qwen|mistral|deepseek|agent|agents|rag|"
-    r"machine learning|deep learning|neural|transformer|diffusion|embedding|fine-?tun\w*|"
-    r"inference|model|models|openai|anthropic|hugging ?face|ollama|mcp|copilot)\b",
+# _RELEVANT = re.compile(
+#     r"\b(ai|llm|llms|gpt|claude|gemini|llama|qwen|mistral|deepseek|agent|agents|rag|"
+#     r"machine learning|deep learning|neural|transformer|diffusion|embedding|fine-?tun\w*|"
+#     r"inference|model|models|openai|anthropic|hugging ?face|ollama|mcp|copilot)\b",
+#     re.I,
+# )
+
+_STRONG = re.compile(
+    r"\b(ai|llm|llms|gpt|claude|gemini|llama|qwen|mistral|deepseek|rag|machine learning|"
+    r"deep learning|neural network|transformers?|diffusion|embeddings?|fine-?tun\w*|openai|"
+    r"anthropic|hugging ?face|ollama|mcp|langchain|ai agents?|agentic|generative)\b",
     re.I,
 )
 
+_WEAK = re.compile(r"\b(agents?|models?|inference|copilot|prompts?|vector)\b", re.I)
+
 def is_relevant(text: str) -> bool:
-    return bool(_RELEVANT.search(text or ""))
+    # return bool(_RELEVANT.search(text or ""))
+    """Layer 1 (cheap): needs one strong AI/ML word, or two different weak ones."""
+    text = text or ""
+    if _STRONG.search(text):
+        return True
+    return len({m.lower() for m in _WEAK.findall(text)})>=2
+
 
 # How much we trust each source when ranking
 SOURCE_WEIGHT = {"github": 1.0, "huggingface": 1.0, "hackernews": 0.9}

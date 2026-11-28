@@ -4,8 +4,10 @@ import config
 import db
 import publisher
 import ranker
+import relevance
 import researcher
 import sources
+import trust                                   # NEW
 import verifier
 import writer
 
@@ -15,10 +17,24 @@ def run(send: bool, top_n: int):
     print(f"[rank] {len(cands)} fresh candidates")
 
     entries = []
-    for c in cands[: top_n * 3]:           # buffer: some will be rejected
+    for c in cands[: top_n * 4]:               # CHANGED: bigger buffer
         if len(entries) >= top_n:
             break
-        print(f"[work] {c.name}")
+        print(f"[work] {c.name}  (stars={c.meta.get('stars', '-')}, forks={c.meta.get('forks', '-')})")
+
+        bad, why = trust.looks_suspicious(c)
+        if bad:
+            print(f"  skip (suspicious): {why}")
+            db.mark_seen(c.key, c.name, c.url)
+            continue
+
+        ok, why = relevance.is_relevant(c)
+        if not ok:
+            print(f"  skip (not AI/ML): {why}")
+            db.mark_seen(c.key, c.name, c.url)
+            continue
+        print(f"  AI/ML check passed: {why}")
+
         text, facts, links = researcher.research(c)
         if len(text) < 200:
             print("  skip: not enough source text")

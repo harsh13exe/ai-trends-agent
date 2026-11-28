@@ -72,6 +72,8 @@ def fetch_github():
                     "language": repo.get("language") or "Not stated",
                     "created": repo["created_at"][:10],
                     "last_push": repo["pushed_at"][:10],
+                    "topics": ", ".join((repo.get("topics") or [])[:8]) or "none", 
+                    "forks": repo["forks_count"], 
                 },
             )
     return list(found.values())
